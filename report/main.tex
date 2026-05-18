@@ -1,0 +1,136 @@
+% !TEX program = xelatex
+\documentclass[UTF8,a4paper]{ctexart}
+\usepackage{geometry}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath, amssymb}
+\usepackage{hyperref}
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\ctexset{
+  section = {
+    format = \Large\bfseries\raggedright
+  }
+}
+
+\title{个人课题(选题3)汇报}
+\author{姓名：魏知原}
+\date{学号：2300012875}
+
+\begin{document}
+\pagestyle{plain}
+\maketitle
+
+\section{任务1：MDP形式化与环境分析}
+
+本项目使用 MiniGrid-Dynamic-Obstacles 系列环境，并按要求使用
+\texttt{SymbolicObsWrapper} 对环境进行包装。包装后，观测仍然是字典形式，主要字段包括
+\texttt{image}、\texttt{direction} 和 \texttt{mission}。其中 \texttt{image} 不再是原始
+RGB 局部视野，而是完整网格的符号化表示，形状为
+\[
+    (N, N, 3),
+\]
+其中 \(N\) 是网格边长。每个格子的三元组可理解为
+\[
+    (x, y, object\_id),
+\]
+即该格子的横坐标、纵坐标和对象编号。包装器会将智能体所在格子的对象编号标记为
+\texttt{agent}，因此该观测可以直接反映完整网格中墙、空地、目标、移动障碍物和智能体的
+位置。环境任务文本固定为 ``get to the green goal square''，因此在本项目的 MDP 分析中，
+\texttt{mission} 不作为额外变化状态处理。
+
+\subsection{状态空间 \(S\)}
+
+从马尔可夫性的角度，一个足够描述环境动态的紧凑状态可以写成
+\[
+    s = (x_a, y_a, d_a, p_1, p_2, \ldots, p_k),
+\]
+其中 \((x_a, y_a)\) 是智能体位置，\(d_a \in \{0,1,2,3\}\) 是智能体朝向，
+\(p_i\) 是第 \(i\) 个动态障碍物的位置，\(k\) 是障碍物数量。边界墙的位置固定，目标格固定在
+右下角内侧 \((N-2, N-2)\)，因此不需要作为变化变量计入状态。
+
+为了估计理论状态空间大小，令
+\[
+    M = (N-2)^2 - 1
+\]
+表示去除边界墙并排除目标格之后，可由智能体或障碍物占据的内部非目标格数量。若把障碍物
+视为同质对象且不允许多个对象占据同一格，则非终止状态空间大小的近似上界为
+\[
+    |S| \approx 4 \cdot M \cdot \binom{M-1}{k}.
+\]
+这里的 \(4\) 来自智能体的四个朝向，\(M\) 是智能体位置数，\(\binom{M-1}{k}\) 是在智能体
+所在格之外选择 \(k\) 个障碍物位置的组合数。
+
+\begin{center}
+\begin{tabular}{c|c|c|c}
+环境规模 & 障碍物数量 \(k\) & \(M\) & 估计状态数 \\
+\hline
+5x5 & 2 & 8 & 672 \\
+8x8 & 4 & 35 & 6,492,640 \\
+16x16 & 8 & 195 & 33,533,784,962,552,160 \\
+\end{tabular}
+\end{center}
+
+\texttt{MiniGrid-Dynamic-Obstacles-Random-5x5-v0} 与普通 5x5 环境的网格规模和障碍物数量相同，
+因此理论状态空间规模相同；区别主要体现在初始状态分布上，随机版本会随机化智能体初始位置
+和方向。移动障碍物显著扩大了状态空间：如果没有障碍物，状态主要由智能体位置和朝向组成；
+加入多个动态障碍物后，状态还必须包含障碍物的位置组合，状态数随网格规模和障碍物数量呈组合
+式增长。这正是表格型 Q-Learning 在大网格中面临维度灾难的根本原因。
+
+\subsection{动作空间 \(A\)}
+
+Dynamic-Obstacles 环境将动作空间限制为三个离散动作：
+\[
+    A = \{\texttt{left}, \texttt{right}, \texttt{forward}\}.
+\]
+对应编号为：
+\begin{center}
+\begin{tabular}{c|c|c}
+编号 & 动作 & 含义 \\
+\hline
+0 & \texttt{left} & 向左旋转 \\
+1 & \texttt{right} & 向右旋转 \\
+2 & \texttt{forward} & 向当前朝向前进一格 \\
+\end{tabular}
+\end{center}
+
+MiniGrid 通用动作集合中还包含 \texttt{pickup}、\texttt{drop}、\texttt{toggle} 和
+\texttt{done}，但在本环境中这些动作不可用。
+
+\subsection{奖励函数 \(R\)}
+
+该环境奖励较稀疏。普通移动或转向通常得到 \(0\) 奖励；当智能体成功到达目标格时，回合终止
+并获得带时间衰减的正奖励：
+\[
+    R_{\text{success}} = 1 - 0.9 \cdot \frac{\texttt{step\_count}}{\texttt{max\_steps}}.
+\]
+因此越早到达目标，奖励越高。若智能体尝试向前进入动态障碍物或墙所在格，会得到 \(-1\)
+惩罚并终止回合。若达到最大步数仍未成功，则回合被截断，失败奖励为 \(0\)。整体来看，奖励
+信号主要出现在成功、碰撞和超时等事件上，因此属于稀疏奖励问题。
+
+\subsection{转移概率 \(P\)}
+
+在给定当前状态和动作时，智能体自身的转向和前进一步规则是确定性的；例如
+\texttt{left} 和 \texttt{right} 只改变朝向，\texttt{forward} 尝试沿当前朝向移动一格。
+但是整个环境转移并非确定性，因为每一步中动态障碍物会在其当前位置附近的 \(3 \times 3\)
+区域内重新采样可用位置。该采样依赖环境随机数，并且可能受到墙、目标、智能体和其他障碍物
+占位情况的限制。因此总体转移概率应写作
+\[
+    P(s' \mid s, a),
+\]
+而不是确定性映射 \(s' = f(s,a)\)。
+
+对于普通 5x5、8x8 和 16x16 版本，初始位置通常是固定的，但回合内部仍然因为动态障碍物
+移动而具有随机性；对于 \texttt{Random-5x5-v0}，初始状态分布本身也具有随机性。这意味着
+PPO 等函数逼近方法不仅要学习避障策略，还需要对不同初始状态具有一定泛化能力，而表格型
+Q-Learning 则需要为大量离散状态分别估计动作价值。
+
+\subsection{小结}
+
+任务一的分析说明，MiniGrid-Dynamic-Obstacles 可以形式化为一个有限但规模快速膨胀的离散
+MDP。小规模环境中表格型 Q-Learning 尚有可能覆盖较多状态，但当环境扩展到 16x16 且包含
+8 个动态障碍物时，理论状态空间已经达到约 \(3.35 \times 10^{16}\) 量级。该结果预示了后续
+实验中表格方法可能遭遇严重样本效率和存储效率问题，也为比较 PPO 的函数逼近和泛化能力
+提供了依据。
+
+
+\end{document}

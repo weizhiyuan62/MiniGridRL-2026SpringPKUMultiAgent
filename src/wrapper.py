@@ -1,1 +1,0 @@
-from minigrid.wrappers import SymbolicObsWrapper
