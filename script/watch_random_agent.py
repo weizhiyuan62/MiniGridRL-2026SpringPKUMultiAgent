@@ -1,11 +1,7 @@
 import argparse
-import sys
 import time
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-from src.env import ACTION_NAMES, make_env
+from minigridrl.env import ACTION_NAMES, make_env
 
 
 def main():

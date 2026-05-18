@@ -18,15 +18,15 @@ env/
 .coverage
 htmlcov/
 
-logs/
-runs/
-wandb/
-tensorboard/
-checkpoints/
-models/
-results/
-outputs/
-artifacts/
+/logs/
+/runs/
+/wandb/
+/tensorboard/
+/checkpoints/
+/models/
+/results/
+/outputs/
+/artifacts/
 *.pt
 *.pth
 *.ckpt

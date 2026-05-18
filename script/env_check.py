@@ -1,13 +1,9 @@
 import argparse
-import sys
-from pathlib import Path
 
 import gymnasium as gym
 import minigrid  # noqa: F401
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-from src.env import get_env_ids, make_env, summarize_observation, symbolic_grid_to_text
+from minigridrl.env import get_env_ids, make_env, summarize_observation, symbolic_grid_to_text
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check the environments")

@@ -1,10 +1,6 @@
 import argparse
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-from src.env import ACTION_NAMES, make_env, symbolic_grid_to_text
+from minigridrl.env import ACTION_NAMES, make_env, symbolic_grid_to_text
 
 
 def main():

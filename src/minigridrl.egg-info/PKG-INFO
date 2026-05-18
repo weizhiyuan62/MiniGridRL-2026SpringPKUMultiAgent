@@ -1,3 +1,14 @@
+Metadata-Version: 2.4
+Name: minigridrl
+Version: 0.1.0
+Summary: Tabular Q-learning and PPO experiments for MiniGrid Dynamic Obstacles.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: minigrid
+Requires-Dist: numpy
+Requires-Dist: torch
+Requires-Dist: tqdm
+
 # MiniGridRL-2026SpringPKUMultiAgent
 
 ## Env Set
