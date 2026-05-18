@@ -13,7 +13,7 @@ class QLearningConfig:
     # hyperparameters for the tabular Q-learning algorithm
     total_steps: int = 50_000
     learning_rate: float = 0.2
-    gamma: float = 0.99
+    gamma: float = 0.99         # discount factor for future rewards
     epsilon_start: float = 1.0
     epsilon_end: float = 0.05
     epsilon_decay_steps: int = 40_000
@@ -34,9 +34,9 @@ class QLearningAgent:
         return self.config.epsilon_start + frac * (self.config.epsilon_end - self.config.epsilon_start)
 
     def act(self, state, step):
-        if self.rng.random() < self.epsilon(step):
-            return int(self.rng.integers(self.action_dim))
-        return int(np.argmax(self.q_table[state]))
+        if self.rng.random() < self.epsilon(step):          # p(true) = epsilon, epsilon greedy...
+            return int(self.rng.integers(self.action_dim))  # action sampled uniformly at random for exploration
+        return int(np.argmax(self.q_table[state]))          # action with highest q-value for the current state
 
     def update(self, state, action, reward, next_state, done):
         # bootstrap update to q-table

@@ -47,11 +47,12 @@ Controls for manual play: `a` turns left, `d` turns right, `w` moves forward, `r
 
 Train tabular Q-learning:
 ```zsh
+# --env: can be set to a special env to debug. "all" means run the 4 env in order
 python train.py \
   --algo q_learning \
-  --env MiniGrid-Dynamic-Obstacles-5x5-v0 \
+  --env all \
   --total-steps 50000 \
-  --seed 0
+  --seed 23
 ```
 
 Train PPO:
