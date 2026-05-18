@@ -16,46 +16,37 @@ from minigridrl.env import make_env
 from minigridrl.models.q_learning import QLearningAgent
 from minigridrl.models.ppo import ActorCritic
 ```
-
-## Simulator Environment Debug Tools
-
-Check raw and symbolic observations:
-```zsh
-python script/env_check.py
-python script/env_check.py --env MiniGrid-Dynamic-Obstacles-8x8-v0
-python script/env_check.py --env MiniGrid-Dynamic-Obstacles-5x5-v0 --no-grid
-```
-
-Print a text rollout with symbolic grids:
-```zsh
-python script/rollout_trace.py --env MiniGrid-Dynamic-Obstacles-5x5-v0 --steps 10
-```
-
-Watch a random policy in a MiniGrid render window:
-```zsh
-python script/watch_random_agent.py --env MiniGrid-Dynamic-Obstacles-5x5-v0 --steps 100 --delay 0.2
-```
-
-Manually interact with the environment:
-```zsh
-python script/play_env.py --env MiniGrid-Dynamic-Obstacles-5x5-v0 --symbolic
-```
-
-Controls for manual play: `a` turns left, `d` turns right, `w` moves forward, `r` resets, and `q` quits.
-
 ## Task 2 Training Entry
 
-Train tabular Q-learning:
+### tabular Q-learning:
 ```zsh
 # --env: can be set to a special env to debug. "all" means run the 4 env in order
 python train.py \
   --algo q_learning \
-  --env all \
+  --env 'MiniGrid-Dynamic-Obstacles-5x5-v0' \
   --total-steps 50000 \
+  --seed 23
+
+python train.py \
+  --algo q_learning \
+  --env 'MiniGrid-Dynamic-Obstacles-Random-5x5-v0' \
+  --total-steps 50000 \
+  --seed 23
+
+python train.py \
+  --algo q_learning \
+  --env 'MiniGrid-Dynamic-Obstacles-8x8-v0' \
+  --total-steps 100000 \
+  --seed 23
+  
+python train.py \
+  --algo q_learning \
+  --env 'MiniGrid-Dynamic-Obstacles-16x16-v0' \
+  --total-steps 200000 \
   --seed 23
 ```
 
-Train PPO:
+### PPO:
 ```zsh
 python train.py \
   --algo ppo \
@@ -65,3 +56,15 @@ python train.py \
 ```
 
 Logs are written to `results/`, and saved checkpoints are written to `checkpoints/`.
+
+### checkpoint test
+```zsh
+python script/test_ckpt.py \
+  --ckpt checkpoints/qlearn/Dynamic_Obstacles_5x5/steps_50000_seed_23.pkl \
+  --env MiniGrid-Dynamic-Obstacles-5x5-v0
+
+python script/test_ckpt.py \
+  --ckpt checkpoints/ppo/Dynamic_Obstacles_5x5/steps_50000_seed_0.pt \
+  --env MiniGrid-Dynamic-Obstacles-5x5-v0 \
+  --device cpu
+```

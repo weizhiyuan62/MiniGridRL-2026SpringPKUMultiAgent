@@ -1,7 +1,6 @@
 import argparse
 import pickle
 from pathlib import Path
-import shutil
 
 from minigridrl.env import ENV_IDS, make_env
 
@@ -33,89 +32,124 @@ def main():
     parser.add_argument("--device", default="cpu", help="PPO torch device, e.g. cpu or mps")
     args = parser.parse_args()
 
-    arg_env = args.env
-    if arg_env == "all":
-        envs = ENV_IDS
-    else:
-        envs = [arg_env]
-    for select_env in envs:
-        env = make_env(select_env, symbolic=True)
-        log_dir = Path(args.log_dir)
-        save_dir = Path(args.save_dir)
-        save_dir.mkdir(parents=True, exist_ok=True)
-        short_env_name = _short_env_name(select_env)
+    for select_env in _selected_envs(args.env):
+        _train_one_env(select_env, args)
 
-        if args.algo == "q_learning":
-            from minigridrl.models.q_learning import QLearningConfig, train_q_learning
 
-            log_path = log_dir / f"q_learning_{short_env_name}_seed{args.seed}.csv"
-            config = QLearningConfig(
-                total_steps=args.total_steps,
-                learning_rate=args.lr if args.lr is not None else 0.2,
-                gamma=args.gamma,
-                epsilon_start=args.epsilon_start,
-                epsilon_end=args.epsilon_end,
-                epsilon_decay_steps=args.epsilon_decay_steps,
-                seed=args.seed,
-                log_path=str(log_path),
-            )
-            agent = train_q_learning(env, config)
-            q_path = save_dir / f"q_learning_{short_env_name}_seed{args.seed}.pkl"
-            with q_path.open("wb") as f:
-                pickle.dump(
-                    {
-                        "algo": "q_learning",
-                        "env": select_env,
-                        "seed": args.seed,
-                        "config": config.__dict__,
-                        "q_table": dict(agent.q_table),
-                    },
-                    f,
-                )
-        else:
-            # import torch at branch instead of top-level to avoid unnecessary dependency for q_learning
-            import torch
-            from minigridrl.models.ppo import PPOConfig, train_ppo
-            
-            log_path = log_dir / f"ppo_{short_env_name}_seed{args.seed}.csv"
-            config = PPOConfig(
-                total_steps=args.total_steps,
-                rollout_steps=args.rollout_steps,
-                update_epochs=args.update_epochs,
-                minibatch_size=args.minibatch_size,
-                learning_rate=args.lr if args.lr is not None else 3e-4,
-                gamma=args.gamma,
-                gae_lambda=args.gae_lambda,
-                clip_coef=args.clip_coef,
-                hidden_dim=args.hidden_dim,
-                seed=args.seed,
-                device=args.device,
-                log_path=str(log_path),
-            )
-            model = train_ppo(env, config)
-            save_path = save_dir / f"ppo_{short_env_name}_seed{args.seed}.pt"
-            if save_path.exists():
-                shutil.rmtree(save_path)
-            torch.save(
-                {
-                    "algo": "ppo",
-                    "env": select_env,
-                    "seed": args.seed,
-                    "config": config.__dict__,
-                    "model_state_dict": model.state_dict(),
-                },
-                save_path,
-            )
+def _selected_envs(env_arg):
+    if env_arg == "all":
+        return ENV_IDS
+    return [env_arg]
 
+
+def _train_one_env(env_id, args):
+    env = make_env(env_id, symbolic=True)
+    try:
+        short_env_name = _short_env_name(env_id)
+
+        trainer = {
+            "q_learning": _run_q_learning,
+            "ppo": _run_ppo,
+        }[args.algo]
+        log_path = trainer(env, env_id, short_env_name, args)
+    finally:
         env.close()
 
-        if not args.no_plot:
-            from minigridrl.utils.visualize import plot_training_curves
+    if not args.no_plot:
+        _plot_curves(log_path, args)
 
-            plot_dir = Path(args.plot_dir) if args.plot_dir is not None else log_dir
-            plot_path = plot_dir / log_path.with_suffix(".png").name
-            saved_plot_path = plot_training_curves(log_path, plot_path)
-            print(f"Saved training curve to {saved_plot_path}")
+
+def _run_q_learning(env, env_id, short_env_name, args):
+    from minigridrl.models.q_learning import QLearningConfig, train_q_learning
+
+    log_path = _artifact_path(args.log_dir, args.algo, short_env_name, args, ".csv")
+    config = QLearningConfig(
+        total_steps=args.total_steps,
+        learning_rate=args.lr if args.lr is not None else 0.2,
+        gamma=args.gamma,
+        epsilon_start=args.epsilon_start,
+        epsilon_end=args.epsilon_end,
+        epsilon_decay_steps=args.epsilon_decay_steps,
+        seed=args.seed,
+        log_path=str(log_path),
+    )
+    agent = train_q_learning(env, config)
+
+    save_path = _artifact_path(args.save_dir, args.algo, short_env_name, args, ".pkl")
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with save_path.open("wb") as file:
+        pickle.dump(
+            {
+                "algo": "q_learning",
+                "env": env_id,
+                "seed": args.seed,
+                "config": config.__dict__,
+                "q_table": dict(agent.q_table),
+            },
+            file,
+        )
+    return log_path
+
+
+def _run_ppo(env, env_id, short_env_name, args):
+    # Keep torch local so tabular Q-learning can run without importing it.
+    import torch
+
+    from minigridrl.models.ppo import PPOConfig, train_ppo
+
+    log_path = _artifact_path(args.log_dir, args.algo, short_env_name, args, ".csv")
+    config = PPOConfig(
+        total_steps=args.total_steps,
+        rollout_steps=args.rollout_steps,
+        update_epochs=args.update_epochs,
+        minibatch_size=args.minibatch_size,
+        learning_rate=args.lr if args.lr is not None else 3e-4,
+        gamma=args.gamma,
+        gae_lambda=args.gae_lambda,
+        clip_coef=args.clip_coef,
+        hidden_dim=args.hidden_dim,
+        seed=args.seed,
+        device=args.device,
+        log_path=str(log_path),
+    )
+    model = train_ppo(env, config)
+
+    save_path = _artifact_path(args.save_dir, args.algo, short_env_name, args, ".pt")
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "algo": "ppo",
+            "env": env_id,
+            "seed": args.seed,
+            "config": config.__dict__,
+            "model_state_dict": model.state_dict(),
+        },
+        save_path,
+    )
+    return log_path
+
+
+def _plot_curves(log_path, args):
+    from minigridrl.utils.visualize import plot_training_curves
+
+    if args.plot_dir is None:
+        plot_path = log_path.with_suffix(".png")
+    else:
+        plot_path = _artifact_path(args.plot_dir, args.algo, log_path.parent.name, args, ".png")
+    saved_plot_path = plot_training_curves(log_path, plot_path)
+    print(f"Saved training curve to {saved_plot_path}")
+
+
+def _artifact_path(root_dir, algo, short_env_name, args, suffix):
+    return Path(root_dir) / _algo_dir_name(algo) / short_env_name / f"{_run_name(args)}{suffix}"
+
+
+def _algo_dir_name(algo):
+    return {"q_learning": "qlearn", "ppo": "ppo"}[algo]
+
+
+def _run_name(args):
+    return f"steps_{args.total_steps}_seed_{args.seed}"
 
 
 def _short_env_name(env_id):
