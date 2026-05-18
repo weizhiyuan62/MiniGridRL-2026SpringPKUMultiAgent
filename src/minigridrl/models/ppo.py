@@ -24,7 +24,7 @@ class PPOConfig:
     entropy_coef: float = 0.01
     max_grad_norm: float = 0.5
     hidden_dim: int = 128
-    seed: int = 0
+    seed: int = 23
     device: str = "cpu"
     log_path: str = "results/ppo.csv"
 

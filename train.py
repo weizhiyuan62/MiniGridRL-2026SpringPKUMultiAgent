@@ -10,7 +10,7 @@ def main():
     parser.add_argument("--algo", choices=["q_learning", "ppo"], required=True, help="Algorithm to train")
     parser.add_argument("--env", choices=ENV_IDS, default=ENV_IDS[0], help="Environment id")
     parser.add_argument("--total-steps", type=int, default=50_000, help="Maximum total training steps")
-    parser.add_argument("--seed", type=int, default=0, help="Random seed")
+    parser.add_argument("--seed", type=int, default=23, help="Random seed")
     parser.add_argument("--log-dir", default="results", help="Directory for CSV logs")
     parser.add_argument("--save-dir", default="checkpoints", help="Directory for saved models")
 
@@ -62,6 +62,7 @@ def main():
                 f,
             )
     else:
+        # import torch at branch instead of top-level to avoid unnecessary dependency for q_learning
         import torch
 
         from minigridrl.models.ppo import PPOConfig, train_ppo
