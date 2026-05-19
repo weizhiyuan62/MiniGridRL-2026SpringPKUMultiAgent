@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from minigridrl.env import ACTION_NAMES, make_env
-from minigridrl.utils.obs import obs_to_tabular_state, obs_to_vector, obs_vector_dim
+from minigridrl.utils.obs import obs_cnn_shape, obs_to_cnn_input, obs_to_tabular_state
 
 
 def main():
@@ -101,18 +101,21 @@ def _build_ppo_policy(checkpoint, env, device, stochastic):
     from minigridrl.models.ppo import ActorCritic
 
     config = checkpoint.get("config", {})
-    hidden_dim = config.get("hidden_dim", 128)
-    model = ActorCritic(obs_vector_dim(env), env.action_space.n, hidden_dim).to(device)
+    hidden_dim = config.get("hidden_dim", 64)
+    cnn_channels = config.get("cnn_channels", 16)
+    model = ActorCritic(obs_cnn_shape(env), env.action_space.n, hidden_dim, cnn_channels).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
     def policy(obs):
-        obs_tensor = torch.as_tensor(obs_to_vector(obs), dtype=torch.float32, device=device).unsqueeze(0)
+        image, direction = obs_to_cnn_input(obs)
+        image_tensor = torch.as_tensor(image, dtype=torch.float32, device=device).unsqueeze(0)
+        direction_tensor = torch.as_tensor([direction], dtype=torch.long, device=device)
         with torch.no_grad():
             if stochastic:
-                action, _, _, _ = model.get_action_and_value(obs_tensor)
+                action, _, _, _ = model.get_action_and_value(image_tensor, direction_tensor)
                 return int(action.item())
-            logits, _ = model(obs_tensor)
+            logits, _ = model(image_tensor, direction_tensor)
             return int(torch.argmax(logits, dim=-1).item())
 
     return policy

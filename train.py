@@ -12,6 +12,7 @@ def main():
     parser.add_argument("--total-steps", type=int, default=50_000, help="Maximum total training steps")
     parser.add_argument("--seed", type=int, default=23, help="Random seed")
     parser.add_argument("--log-dir", default="results", help="Directory for CSV logs")
+    parser.add_argument("--debug-log-dir", default="logs", help="Directory for PPO debug CSV logs")
     parser.add_argument("--save-dir", default="checkpoints", help="Directory for saved models")
     parser.add_argument("--plot-dir", default=None, help="Directory for curve PNGs. Defaults to log-dir")
     parser.add_argument("--no-plot", action="store_true", help="Disable plotting training curves after training")
@@ -28,7 +29,9 @@ def main():
     parser.add_argument("--minibatch-size", type=int, default=256, help="PPO minibatch size")
     parser.add_argument("--clip-coef", type=float, default=0.2, help="PPO clipping coefficient")
     parser.add_argument("--gae-lambda", type=float, default=0.95, help="PPO GAE lambda")
-    parser.add_argument("--hidden-dim", type=int, default=128, help="PPO hidden layer width")
+    parser.add_argument("--entropy-coef", type=float, default=0.01, help="PPO entropy bonus coefficient")
+    parser.add_argument("--hidden-dim", type=int, default=64, help="PPO hidden layer width")
+    parser.add_argument("--cnn-channels", type=int, default=16, help="PPO CNN channel width")
     parser.add_argument("--device", default="cpu", help="PPO torch device, e.g. cpu or mps")
     args = parser.parse_args()
 
@@ -107,10 +110,13 @@ def _run_ppo(env, env_id, short_env_name, args):
         gamma=args.gamma,
         gae_lambda=args.gae_lambda,
         clip_coef=args.clip_coef,
+        entropy_coef=args.entropy_coef,
         hidden_dim=args.hidden_dim,
+        cnn_channels=args.cnn_channels,
         seed=args.seed,
         device=args.device,
         log_path=str(log_path),
+        debug_log_path=str(_artifact_path(args.debug_log_dir, args.algo, short_env_name, args, ".debug.csv")),
     )
     model = train_ppo(env, config)
 
@@ -119,6 +125,7 @@ def _run_ppo(env, env_id, short_env_name, args):
     torch.save(
         {
             "algo": "ppo",
+            "model_type": "cnn_actor_critic",
             "env": env_id,
             "seed": args.seed,
             "config": config.__dict__,
@@ -149,7 +156,14 @@ def _algo_dir_name(algo):
 
 
 def _run_name(args):
-    return f"steps_{args.total_steps}_seed_{args.seed}"
+    name = f"steps_{args.total_steps}_seed_{args.seed}"
+    if args.algo == "ppo":
+        name += f"_entropy_{_format_float(args.entropy_coef)}"
+    return name
+
+
+def _format_float(value):
+    return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
 def _short_env_name(env_id):
