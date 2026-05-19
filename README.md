@@ -9,13 +9,6 @@ conda activate minigridrl
 pip install -e .
 
 ```
-
-After editable installation, project modules can be imported directly:
-```python
-from minigridrl.env import make_env
-from minigridrl.models.q_learning import QLearningAgent
-from minigridrl.models.ppo import ActorCritic
-```
 ## Task 2 Training Entry
 
 ### tabular Q-learning:
@@ -61,12 +54,12 @@ python train.py \
 python train.py \
   --algo ppo \
   --env MiniGrid-Dynamic-Obstacles-8x8-v0 \
-  --total-steps 50000
+  --total-steps 100000
 
 python train.py \
   --algo ppo \
   --env MiniGrid-Dynamic-Obstacles-16x16-v0 \
-  --total-steps 50000
+  --total-steps 130000
 ```
 
 Logs are written to `results/`, and saved checkpoints are written to `checkpoints/`.
@@ -77,28 +70,11 @@ action fractions, reward statistics, advantage statistics, and PPO diagnostics.
 ```zsh
 # Run Q-learning and PPO-Clip on all four environments with five seeds, 
 # then plot the seed-averaged episode-return curves:
-# --env: select env to do experiment
+# --env: select env to do experiment, example:
 python script/run_seed_average.py \
   --seeds 1 23 31 42 97 \
   --env MiniGrid-Dynamic-Obstacles-16x16-v0 \
   --algo all \
   --total-steps 130000
   # In my experiment, I run 5*5 for 50,000 step, and the others for 100,000 steps
-```
-
-- The script writes averaged plots and per-step mean/std CSV files to
-`results/averaged/`.
-- PPO outputs include the entropy coefficient in the filename, for example
-`steps_50000_seed_23_entropy_0p01.png`, so entropy sweeps do not overwrite each other.
-
-### checkpoint test
-```zsh
-python script/test_ckpt.py \
-  --ckpt checkpoints/qlearn/Dynamic_Obstacles_5x5/steps_50000_seed_23.pkl \
-  --env MiniGrid-Dynamic-Obstacles-5x5-v0
-
-python script/test_ckpt.py \
-  --ckpt checkpoints/ppo/Dynamic_Obstacles_5x5/steps_50000_seed_0.pt \
-  --env MiniGrid-Dynamic-Obstacles-5x5-v0 \
-  --device cpu
 ```
